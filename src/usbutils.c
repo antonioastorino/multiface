@@ -66,7 +66,7 @@ Error usb_utils_open_serial_port(
     options.c_cc[VQUIT]    = 0;            /* Ctrl-\ */
     options.c_cc[VERASE]   = 0;            /* del */
     options.c_cc[VKILL]    = 0;            /* @ */
-    options.c_cc[VTIME]    = 0;            /* inter-character timer unused */
+    options.c_cc[VTIME]    = 3;            /* inter-character timer unused */
     options.c_cc[VMIN]     = min_in_bytes; /* block for min_in_bytes char at least*/
     options.c_cc[VSTART]   = 0;            /* Ctrl-q */
     options.c_cc[VSTOP]    = 0;            /* Ctrl-s */

@@ -1,4 +1,5 @@
 #include <sched.h> /* To set the priority on linux */
+#include <stdbool.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -18,16 +19,20 @@
 #define COMMUNICATION_BUFF_IN_SIZE (4096)
 
 typedef int Error;
+bool g_should_close = false;
 
 #include "usbutils.c"
 
 void signal_handler(int signum)
 {
     printf("Process interrupted by signal `%d`.\n", signum);
+    g_should_close = true;
 }
 
 int main(int argc, char* argv[])
 {
+    char input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+    ssize_t bytes_read = 0;
     if (argc < 2)
     {
         printf("Missing serial device\n");
@@ -37,6 +42,10 @@ int main(int argc, char* argv[])
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
     int serial_fd = 0;
-    usb_utils_open_serial_port(argv[1], B115200, 0, &serial_fd);
+    usb_utils_open_serial_port(argv[1], 115200, 0, &serial_fd);
+    while (!g_should_close) {
+        usb_utils_read_port(serial_fd, input_buffer, &bytes_read);
+        printf("Read: %s\n", input_buffer);
+    }
     return ERR_ALL_GOOD;
 }
