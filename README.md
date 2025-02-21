@@ -26,6 +26,8 @@ From the root folder, run
 where `<device_name>` is that used to communicate with the ESP32, for example
 `/ttyUSB0`.
 
+Then `echo` your instructions to the FIFO created by the application.
+
 ## Limitations
 Tested on Raspberry Pi 4 and ESP32 only. With minor changes it can run on any
 uC supported by Platform IO and any OS.
