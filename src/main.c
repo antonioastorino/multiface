@@ -11,11 +11,10 @@
 #include <stdlib.h>
 #include <errno.h>
 
-
 #define ERR_ALL_GOOD (0)
 #define ERR_UNEXPECTED (1)
 #define ERR_INTERRUPTION (2)
-#define ERR_INVALID (3)  
+#define ERR_INVALID (3)
 #define COMMUNICATION_BUFF_IN_SIZE (4096)
 
 typedef int Error;
@@ -31,8 +30,10 @@ void signal_handler(int signum)
 
 int main(int argc, char* argv[])
 {
-    char input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
-    ssize_t bytes_read = 0;
+    char input_buffer[COMMUNICATION_BUFF_IN_SIZE]  = {0};
+    char output_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+    ssize_t bytes_read                             = 0;
+    ssize_t bytes_to_write                         = 0;
     if (argc < 2)
     {
         printf("Missing serial device\n");
@@ -43,9 +44,24 @@ int main(int argc, char* argv[])
     sigaction(SIGTERM, &sa, 0);
     int serial_fd = 0;
     usb_utils_open_serial_port(argv[1], B115200, 0, &serial_fd);
-    while (!g_should_close) {
-        usb_utils_read_port(serial_fd, input_buffer, &bytes_read);
-        printf("Read: %s\n", input_buffer);
+    while (!g_should_close)
+    {
+        if (usb_utils_read_port(serial_fd, input_buffer, &bytes_read) == ERR_ALL_GOOD)
+        {
+            if (bytes_read)
+            {
+                printf("Read: %s", input_buffer);
+            }
+            else
+            {
+                printf("Got an empty answer\n");
+            }
+        }
+        else
+        {
+            printf("Timeout\n");
+        }
+        sleep(0.5);
     }
     return ERR_ALL_GOOD;
 }

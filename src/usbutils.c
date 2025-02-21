@@ -1,18 +1,4 @@
 
-void _usb_utils_flush(int fd)
-{
-    // play with DTR
-    int iFlags;
-
-    // turn on DTR
-    iFlags = TIOCM_DTR;
-    ioctl(fd, TIOCMBIS, &iFlags);
-    // turn off DTR
-    iFlags = TIOCM_DTR;
-    ioctl(fd, TIOCMBIC, &iFlags);
-    tcflush(fd, TCIFLUSH);
-}
-
 void _usb_utils_print_termios_struct(struct termios* options)
 {
     printf("c_iflag:  0%o\n", options->c_iflag & 0777777);
@@ -48,7 +34,7 @@ Error usb_utils_open_serial_port(
     const int min_in_bytes,
     int* out_fd)
 {
-    *out_fd = open(device, O_RDWR | O_NOCTTY);
+    *out_fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (*out_fd == -1)
     {
         perror(device);
@@ -110,7 +96,6 @@ Error usb_utils_open_serial_port(
         return ERR_UNEXPECTED;
     }
 
-    //_usb_utils_flush(*out_fd);
     return ERR_ALL_GOOD;
 }
 
@@ -121,7 +106,7 @@ void usb_utils_close_serial_port(int fd)
 }
 
 // Writes bytes to the serial port, returning 0 on success and -1 on failure.
-Error usb_utils_write_port(const int fd, const char* buffer, size_t size)
+Error usb_utils_write_port(const int fd, const char* buffer, const size_t size)
 {
     ssize_t result = write(fd, buffer, size);
     if (result != (ssize_t)size)
@@ -136,16 +121,19 @@ Error usb_utils_read_port(const int fd, char* buffer, ssize_t* out_bytes_read_p)
 {
     // Leave one empty spot in the array to ensure that even if the buffer is full it can be
     // null-terminated
-    *out_bytes_read_p = read(fd, buffer, COMMUNICATION_BUFF_IN_SIZE - 1);
-    if (errno == EINTR)
+    *out_bytes_read_p = -1;
+    // printf("Got: %zd byte(s)\n", *out_bytes_read_p);
+    int i = 0;
+    while((i < 10) && (*out_bytes_read_p < 0))
     {
-        printf("User's interruption\n");
-        return ERR_INTERRUPTION;
+        *out_bytes_read_p = read(fd, buffer, COMMUNICATION_BUFF_IN_SIZE - 1);
+        usleep(1000);
+        i++;
     }
-    printf("Got: %zd byte(s)\n", *out_bytes_read_p);
+    printf("Received stuff\n");
     if (*out_bytes_read_p < 0)
     {
-        perror("failed to read from port");
+        // perror("failed to read from port");
         return ERR_UNEXPECTED;
     }
     buffer[*out_bytes_read_p] = 0;

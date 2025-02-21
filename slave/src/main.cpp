@@ -5,6 +5,8 @@ void setup(void) {
 }
 
 void loop(void) {
-    Serial.println("hello");
+    Serial.print("This is a very long string but you should not crop it or wrap it or crap it! - ");
+    Serial.print("This is a very long string but you should not crop it or wrap it or crap it! - ");
+    Serial.println("This is a very long string but you should not crop it or wrap it or crap it!");
     delay(1000);
 }
