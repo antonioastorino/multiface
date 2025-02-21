@@ -1,9 +1,3 @@
-#include "prj_setup.h"
-#include "usbutils.h"
-#include <fcntl.h>
-#include <stdio.h>
-#include <strings.h>
-#include <sys/ioctl.h>
 
 void _usb_utils_flush(int fd)
 {
@@ -21,14 +15,12 @@ void _usb_utils_flush(int fd)
 
 void _usb_utils_print_termios_struct(struct termios* options)
 {
-#define placeholder "%o"
-    LOG_DEBUG("c_iflag:  " placeholder, options->c_iflag & 0xfff);
-    LOG_DEBUG("c_oflag:  " placeholder, options->c_oflag & 0xfffff);
-    LOG_DEBUG("c_cflag:  " placeholder, options->c_cflag & 0xffffff);
-    LOG_DEBUG("c_lflag:  " placeholder, options->c_lflag & 0xffffffff);
-    LOG_DEBUG("c_ispeed: " placeholder, options->c_ispeed);
-    LOG_DEBUG("c_ospeed: " placeholder, options->c_ospeed);
-    UNUSED(options);
+    printf("c_iflag:  %o\n", options->c_iflag & 0xfff);
+    printf("c_oflag:  %o\n", options->c_oflag & 0xfffff);
+    printf("c_cflag:  %o\n", options->c_cflag & 0xffffff);
+    printf("c_lflag:  %o\n", options->c_lflag & 0xffffffff);
+    printf("c_ispeed: %o\n", options->c_ispeed);
+    printf("c_ospeed: %o\n", options->c_ospeed);
 }
 
 struct termios initial_options;
@@ -50,13 +42,13 @@ Error usb_utils_open_serial_port(
         perror("Not a TTY device");
         return ERR_INVALID;
     }
-    LOG_TRACE("Device connected\n");
+    printf("Device connected\n");
 
     struct termios options;
 
     if (tcgetattr(*out_fd, &initial_options) < 0)
     {
-        LOG_ERROR("Could not read current device configuration.");
+        printf("Could not read current device configuration.\n");
         close(*out_fd);
         return ERR_UNEXPECTED;
     }
@@ -66,23 +58,23 @@ Error usb_utils_open_serial_port(
     options.c_iflag        = IGNPAR | IGNCR;
     options.c_oflag        = 0;
     options.c_lflag        = ICANON;
+    options.c_cc[VEOF]     = 4;            /* Ctrl-d */
+    options.c_cc[VEOL]     = 0;            /* '\0' */
+    options.c_cc[VEOL2]    = 0; /* '\0' */ // expected num of bytes before returning
     options.c_cc[VSWTC]    = 0;            /* '\0' */
     options.c_cc[VINTR]    = 0;            /* Ctrl-c */
     options.c_cc[VQUIT]    = 0;            /* Ctrl-\ */
     options.c_cc[VERASE]   = 0;            /* del */
     options.c_cc[VKILL]    = 0;            /* @ */
-    options.c_cc[VEOF]     = 4;            /* Ctrl-d */
     options.c_cc[VTIME]    = 0;            /* inter-character timer unused */
     options.c_cc[VMIN]     = min_in_bytes; /* block for min_in_bytes char at least*/
     options.c_cc[VSTART]   = 0;            /* Ctrl-q */
     options.c_cc[VSTOP]    = 0;            /* Ctrl-s */
     options.c_cc[VSUSP]    = 0;            /* Ctrl-z */
-    options.c_cc[VEOL]     = 0;            /* '\0' */
     options.c_cc[VREPRINT] = 0;            /* Ctrl-r */
     options.c_cc[VDISCARD] = 0;            /* Ctrl-u */
     options.c_cc[VWERASE]  = 0;            /* Ctrl-w */
     options.c_cc[VLNEXT]   = 0;            /* Ctrl-v */
-    options.c_cc[VEOL2]    = 0; /* '\0' */ // expected num of bytes before returning
 
     cfsetispeed(&options, baud_rate);
     cfsetospeed(&options, baud_rate);
@@ -92,7 +84,7 @@ Error usb_utils_open_serial_port(
     // write port configuration to driver
     if (tcsetattr(*out_fd, TCSAFLUSH, &options))
     {
-        LOG_ERROR("tcsetattr failed");
+        printf("tcsetattr failed\n");
         close(*out_fd);
         return ERR_UNEXPECTED;
     }
@@ -113,7 +105,7 @@ Error usb_utils_write_port(const int fd, const char* buffer, size_t size)
     ssize_t result = write(fd, buffer, size);
     if (result != (ssize_t)size)
     {
-        LOG_ERROR("Failed to write to port.");
+        printf("Failed to write to port.\n");
         return ERR_UNEXPECTED;
     }
     return ERR_ALL_GOOD;
@@ -126,10 +118,10 @@ Error usb_utils_read_port(const int fd, char* buffer, ssize_t* out_bytes_read_p)
     *out_bytes_read_p = read(fd, buffer, COMMUNICATION_BUFF_IN_SIZE - 1);
     if (errno == EINTR)
     {
-        LOG_WARNING("User's interruption");
+        printf("User's interruption\n");
         return ERR_INTERRUPTION;
     }
-    LOG_TRACE("Got: %zd byte(s)\n", *out_bytes_read_p);
+    printf("Got: %zd byte(s)\n", *out_bytes_read_p);
     if (*out_bytes_read_p < 0)
     {
         perror("failed to read from port");
