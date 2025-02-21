@@ -48,7 +48,6 @@ void signal_handler(int signum)
 void* fifo_reader(void* unused)
 {
     UNUSED(unused);
-    const char* message = NULL;
     printf("Thread running");
     while (true)
     {
@@ -65,7 +64,7 @@ int main(int argc, char* argv[])
     ssize_t bytes_read = 0;
     pthread_t fifo_thread;
     pthread_attr_t pthread_attr;
-    const char* message;
+    const char* message             = NULL;
     bool should_send_serial_message = false;
     pthread_attr_init(&pthread_attr);
     if (pthread_create(&fifo_thread, &pthread_attr, fifo_reader, NULL) < 0)
