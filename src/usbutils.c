@@ -31,7 +31,6 @@ struct termios initial_options;
 Error usb_utils_open_serial_port(
     const char* device,
     const speed_t baud_rate,
-    const int min_in_bytes,
     int* out_fd)
 {
     *out_fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
@@ -64,23 +63,23 @@ Error usb_utils_open_serial_port(
     options.c_iflag        = IGNPAR | IGNCR | BRKINT | ICRNL | IMAXBEL;
     options.c_oflag        = OPOST | ONLCR;
     options.c_lflag        = ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE | IEXTEN;
-    options.c_cc[VEOF]     = 4;            /* Ctrl-d */
-    options.c_cc[VEOL]     = 0;            /* '\0' */
-    options.c_cc[VEOL2]    = 0; /* '\0' */ // expected num of bytes before returning
-    options.c_cc[VSWTC]    = 0;            /* '\0' */
-    options.c_cc[VINTR]    = 0;            /* Ctrl-c */
-    options.c_cc[VQUIT]    = 0;            /* Ctrl-\ */
-    options.c_cc[VERASE]   = 0;            /* del */
-    options.c_cc[VKILL]    = 0;            /* @ */
-    options.c_cc[VTIME]    = 3;            /* inter-character timer unused */
-    options.c_cc[VMIN]     = min_in_bytes; /* block for min_in_bytes char at least*/
-    options.c_cc[VSTART]   = 0;            /* Ctrl-q */
-    options.c_cc[VSTOP]    = 0;            /* Ctrl-s */
-    options.c_cc[VSUSP]    = 0;            /* Ctrl-z */
-    options.c_cc[VREPRINT] = 0;            /* Ctrl-r */
-    options.c_cc[VDISCARD] = 0;            /* Ctrl-u */
-    options.c_cc[VWERASE]  = 0;            /* Ctrl-w */
-    options.c_cc[VLNEXT]   = 0;            /* Ctrl-v */
+    options.c_cc[VEOF]     = 4; /* Ctrl-d */
+    options.c_cc[VEOL]     = 0; /* '\0' */
+    options.c_cc[VEOL2]    = 0; // expected num of bytes before returning
+    options.c_cc[VSWTC]    = 0; /* '\0' */
+    options.c_cc[VINTR]    = 0; /* Ctrl-c */
+    options.c_cc[VQUIT]    = 0; /* Ctrl-\ */
+    options.c_cc[VERASE]   = 0; /* del */
+    options.c_cc[VKILL]    = 0; /* @ */
+    options.c_cc[VTIME]    = 3; /* inter-character timer unused */
+    options.c_cc[VMIN]     = 0; /* block for min_in_bytes char at least*/
+    options.c_cc[VSTART]   = 0; /* Ctrl-q */
+    options.c_cc[VSTOP]    = 0; /* Ctrl-s */
+    options.c_cc[VSUSP]    = 0; /* Ctrl-z */
+    options.c_cc[VREPRINT] = 0; /* Ctrl-r */
+    options.c_cc[VDISCARD] = 0; /* Ctrl-u */
+    options.c_cc[VWERASE]  = 0; /* Ctrl-w */
+    options.c_cc[VLNEXT]   = 0; /* Ctrl-v */
 
     cfsetospeed(&options, baud_rate);
     cfsetispeed(&options, baud_rate);
@@ -122,9 +121,8 @@ Error usb_utils_read_port(const int fd, char* buffer, ssize_t* out_bytes_read_p)
     // Leave one empty spot in the array to ensure that even if the buffer is full it can be
     // null-terminated
     *out_bytes_read_p = -1;
-    // printf("Got: %zd byte(s)\n", *out_bytes_read_p);
-    int i = 0;
-    while((i < 10) && (*out_bytes_read_p < 0))
+    int i             = 0;
+    while ((i < 10) && (*out_bytes_read_p < 0))
     {
         *out_bytes_read_p = read(fd, buffer, COMMUNICATION_BUFF_IN_SIZE - 1);
         usleep(1000);

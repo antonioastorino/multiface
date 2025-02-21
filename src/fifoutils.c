@@ -26,19 +26,17 @@ void fifo_utils_make_fifo(const char* fifo_path_char_p)
     }
 }
 
-Error fifo_utils_wait_for_fifo_in(char* out_fifo_in_buffer_p)
+Error fifo_utils_wait_for_fifo_in(char* out_fifo_in_buffer_p, ssize_t *bytes_read)
 {
-    ssize_t bytes_in;
     int fifo_fd = open(FIFO_IN, O_RDONLY);
     if (fifo_fd < 0)
     {
         printf("Failed to open FIFO `%s`.\n", FIFO_IN);
         return ERR_FATAL;
     }
-    bytes_in = read(fifo_fd, out_fifo_in_buffer_p, COMMUNICATION_BUFF_IN_SIZE);
-    if (bytes_in < 0)
+    *bytes_read = read(fifo_fd, out_fifo_in_buffer_p, COMMUNICATION_BUFF_IN_SIZE);
+    if (*bytes_read < 0)
     {
-        // TODO: check for ERR_INTERRUPTION
         printf("Failed to read from FIFO `%s`.\n", FIFO_IN);
         return ERR_FATAL;
     }

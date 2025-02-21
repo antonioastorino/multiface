@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <string.h>
 
 #define ERR_ALL_GOOD (0)
 #define ERR_UNEXPECTED (1)
@@ -21,13 +22,19 @@
 #define ERR_FATAL (-1)
 
 #define COMMUNICATION_BUFF_IN_SIZE (4096)
+#define UNUSED(x) (void)(x)
 
 #define FIFO_IN "artifacts/fifo_in"
 #define FIFO_OUT "artifacts/fifo_out"
 
 typedef int Error;
-bool g_should_close = false;
-bool g_should_react = false;
+bool g_should_close                                     = false;
+bool g_should_react                                     = false;
+char g_serial_output_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+int g_serial_fd                                         = 0;
+ssize_t g_serial_bytes_to_write                         = 0;
+char g_fifo_input_buffer[COMMUNICATION_BUFF_IN_SIZE]    = {0};
+ssize_t g_fifo_bytes_read                               = 0;
 
 #include "usbutils.c"
 #include "fifoutils.c"
@@ -40,11 +47,12 @@ void signal_handler(int signum)
 
 void* fifo_reader(void* unused)
 {
-    char fifo_input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+    UNUSED(unused);
+    const char* message = NULL;
     printf("Thread running");
     while (true)
     {
-        fifo_utils_wait_for_fifo_in(fifo_input_buffer);
+        fifo_utils_wait_for_fifo_in(g_fifo_input_buffer, &g_fifo_bytes_read);
         g_should_react = true;
     }
     return NULL;
@@ -52,13 +60,13 @@ void* fifo_reader(void* unused)
 
 int main(int argc, char* argv[])
 {
-    char serial_input_buffer[COMMUNICATION_BUFF_IN_SIZE]  = {0};
-    char serial_output_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
-    char fifo_output_buffer[COMMUNICATION_BUFF_IN_SIZE]   = {0};
-    ssize_t bytes_read                                    = 0;
-    ssize_t bytes_to_write                                = 0;
+    char serial_input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+    // char fifo_output_buffer[COMMUNICATION_BUFF_IN_SIZE]  = {0};
+    ssize_t bytes_read = 0;
     pthread_t fifo_thread;
     pthread_attr_t pthread_attr;
+    const char* message;
+    bool should_send_serial_message = false;
     pthread_attr_init(&pthread_attr);
     if (pthread_create(&fifo_thread, &pthread_attr, fifo_reader, NULL) < 0)
     {
@@ -77,28 +85,48 @@ int main(int argc, char* argv[])
     struct sigaction sa = {.sa_handler = signal_handler};
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
-    int serial_fd = 0;
-    usb_utils_open_serial_port(argv[1], B115200, 0, &serial_fd);
+    usb_utils_open_serial_port(argv[1], B115200, &g_serial_fd);
 
     while (!g_should_close)
     {
         if (g_should_react)
         {
             g_should_react = false;
-            if (usb_utils_read_port(serial_fd, serial_input_buffer, &bytes_read) == ERR_ALL_GOOD)
+            if (strncmp(g_fifo_input_buffer, "POLL", (size_t)bytes_read) == 0)
             {
-                if (bytes_read)
+                message                 = "FIFO asks for polling\n";
+                g_serial_bytes_to_write = sizeof(message);
+                memcpy(g_serial_output_buffer, message, g_serial_bytes_to_write);
+                should_send_serial_message = true;
+            }
+            bzero(g_fifo_input_buffer, g_fifo_bytes_read);
+
+            if (should_send_serial_message)
+            {
+                should_send_serial_message = false;
+                if (usb_utils_write_port(
+                        g_serial_fd, g_serial_output_buffer, g_serial_bytes_to_write)
+                    != ERR_ALL_GOOD)
                 {
-                    printf("Read: %s", serial_input_buffer);
+                    printf("This should not happen\n");
+                    exit(ERR_FATAL);
+                }
+                if (usb_utils_read_port(g_serial_fd, serial_input_buffer, &bytes_read)
+                    == ERR_ALL_GOOD)
+                {
+                    if (bytes_read)
+                    {
+                        printf("Read: %s", serial_input_buffer);
+                    }
+                    else
+                    {
+                        printf("Got an empty answer\n");
+                    }
                 }
                 else
                 {
-                    printf("Got an empty answer\n");
+                    printf("Timeout\n");
                 }
-            }
-            else
-            {
-                printf("Timeout\n");
             }
         }
         else
