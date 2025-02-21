@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <pthread.h>
 
 #define ERR_ALL_GOOD (0)
 #define ERR_UNEXPECTED (1)
@@ -37,14 +38,35 @@ void signal_handler(int signum)
     g_should_close = true;
 }
 
+void* fifo_reader(void* unused)
+{
+    char fifo_input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+    printf("Thread running");
+    while (true)
+    {
+        fifo_utils_wait_for_fifo_in(fifo_input_buffer);
+        g_should_react = true;
+    }
+    return NULL;
+}
+
 int main(int argc, char* argv[])
 {
     char serial_input_buffer[COMMUNICATION_BUFF_IN_SIZE]  = {0};
     char serial_output_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
-    char fifo_input_buffer[COMMUNICATION_BUFF_IN_SIZE]    = {0};
     char fifo_output_buffer[COMMUNICATION_BUFF_IN_SIZE]   = {0};
     ssize_t bytes_read                                    = 0;
     ssize_t bytes_to_write                                = 0;
+    pthread_t fifo_thread;
+    pthread_attr_t pthread_attr;
+    pthread_attr_init(&pthread_attr);
+    if (pthread_create(&fifo_thread, &pthread_attr, fifo_reader, NULL) < 0)
+    {
+        perror("Create thread");
+        exit(ERR_FATAL);
+    }
+    pthread_attr_destroy(&pthread_attr);
+
     if (argc < 2)
     {
         printf("Missing serial device\n");
@@ -58,13 +80,11 @@ int main(int argc, char* argv[])
     int serial_fd = 0;
     usb_utils_open_serial_port(argv[1], B115200, 0, &serial_fd);
 
-    fifo_utils_wait_for_fifo_in(fifo_input_buffer);
-    exit(0);
     while (!g_should_close)
     {
         if (g_should_react)
         {
-            // TODO: send something to serial
+            g_should_react = false;
             if (usb_utils_read_port(serial_fd, serial_input_buffer, &bytes_read) == ERR_ALL_GOOD)
             {
                 if (bytes_read)
@@ -83,9 +103,15 @@ int main(int argc, char* argv[])
         }
         else
         {
-            printf("Waiting for FIFO message");
+            printf("Waiting for FIFO message\n");
             sleep(1);
         }
     }
+
+    printf("Joining\n");
+    pthread_cancel(fifo_thread);
+    printf("should react = %d\n", g_should_react);
+    printf("should close = %d\n", g_should_close);
+    pthread_join(fifo_thread, NULL);
     return ERR_ALL_GOOD;
 }
