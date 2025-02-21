@@ -15,12 +15,29 @@ void _usb_utils_flush(int fd)
 
 void _usb_utils_print_termios_struct(struct termios* options)
 {
-    printf("c_iflag:  %o\n", options->c_iflag & 0xfff);
-    printf("c_oflag:  %o\n", options->c_oflag & 0xfffff);
-    printf("c_cflag:  %o\n", options->c_cflag & 0xffffff);
-    printf("c_lflag:  %o\n", options->c_lflag & 0xffffffff);
-    printf("c_ispeed: %o\n", options->c_ispeed);
-    printf("c_ospeed: %o\n", options->c_ospeed);
+    printf("c_iflag:  0%o\n", options->c_iflag & 0777777);
+    printf("c_oflag:  0%o\n", options->c_oflag & 0777777);
+    printf("c_cflag:  0%o\n", options->c_cflag & 0777777);
+    printf("c_lflag:  0%o\n", options->c_lflag & 0777777);
+    printf("c_ispeed: 0%o\n", options->c_ispeed);
+    printf("c_ospeed: 0%o\n", options->c_ospeed);
+    printf("c_cc[VEOF]    : %d\n", options->c_cc[VEOF]);
+    printf("c_cc[VEOL]    : %d\n", options->c_cc[VEOL]);
+    printf("c_cc[VEOL2]   : %d\n", options->c_cc[VEOL2]);
+    printf("c_cc[VSWTC]   : %d\n", options->c_cc[VSWTC]);
+    printf("c_cc[VINTR]   : %d\n", options->c_cc[VINTR]);
+    printf("c_cc[VQUIT]   : %d\n", options->c_cc[VQUIT]);
+    printf("c_cc[VERASE]  : %d\n", options->c_cc[VERASE]);
+    printf("c_cc[VKILL]   : %d\n", options->c_cc[VKILL]);
+    printf("c_cc[VTIME]   : %d\n", options->c_cc[VTIME]);
+    printf("c_cc[VMIN]    : %d\n", options->c_cc[VMIN]);
+    printf("c_cc[VSTART]  : %d\n", options->c_cc[VSTART]);
+    printf("c_cc[VSTOP]   : %d\n", options->c_cc[VSTOP]);
+    printf("c_cc[VSUSP]   : %d\n", options->c_cc[VSUSP]);
+    printf("c_cc[VREPRINT]: %d\n", options->c_cc[VREPRINT]);
+    printf("c_cc[VDISCARD]: %d\n", options->c_cc[VDISCARD]);
+    printf("c_cc[VWERASE] : %d\n", options->c_cc[VWERASE]);
+    printf("c_cc[VLNEXT]  : %d\n", options->c_cc[VLNEXT]);
 }
 
 struct termios initial_options;
@@ -52,12 +69,15 @@ Error usb_utils_open_serial_port(
         close(*out_fd);
         return ERR_UNEXPECTED;
     }
+    printf("Initial options:\n");
+    _usb_utils_print_termios_struct(&initial_options);
+
     bzero(&options, sizeof(options));
 
-    options.c_cflag        = (CLOCAL | CREAD | baud_rate | CRTSCTS | CS8);
-    options.c_iflag        = IGNPAR | IGNCR;
-    options.c_oflag        = 0;
-    options.c_lflag        = ICANON;
+    options.c_cflag        = CLOCAL | CREAD | CRTSCTS | CS8;
+    options.c_iflag        = IGNPAR | IGNCR | BRKINT | ICRNL | IMAXBEL;
+    options.c_oflag        = OPOST | ONLCR;
+    options.c_lflag        = ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE | IEXTEN;
     options.c_cc[VEOF]     = 4;            /* Ctrl-d */
     options.c_cc[VEOL]     = 0;            /* '\0' */
     options.c_cc[VEOL2]    = 0; /* '\0' */ // expected num of bytes before returning
@@ -76,9 +96,10 @@ Error usb_utils_open_serial_port(
     options.c_cc[VWERASE]  = 0;            /* Ctrl-w */
     options.c_cc[VLNEXT]   = 0;            /* Ctrl-v */
 
-    cfsetispeed(&options, baud_rate);
     cfsetospeed(&options, baud_rate);
+    cfsetispeed(&options, baud_rate);
 
+    printf("Final options:\n");
     _usb_utils_print_termios_struct(&options);
 
     // write port configuration to driver
@@ -89,7 +110,7 @@ Error usb_utils_open_serial_port(
         return ERR_UNEXPECTED;
     }
 
-    _usb_utils_flush(*out_fd);
+    //_usb_utils_flush(*out_fd);
     return ERR_ALL_GOOD;
 }
 

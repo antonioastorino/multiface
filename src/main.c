@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
     int serial_fd = 0;
-    usb_utils_open_serial_port(argv[1], 115200, 0, &serial_fd);
+    usb_utils_open_serial_port(argv[1], B115200, 0, &serial_fd);
     while (!g_should_close) {
         usb_utils_read_port(serial_fd, input_buffer, &bytes_read);
         printf("Read: %s\n", input_buffer);
