@@ -19,6 +19,7 @@
 #define ERR_UNEXPECTED (1)
 #define ERR_INTERRUPTION (2)
 #define ERR_INVALID (3)
+#define ERR_TIMEOUT (4)
 #define ERR_FATAL (-1)
 
 #define COMMUNICATION_BUFF_IN_SIZE (4096)
@@ -28,13 +29,12 @@
 #define FIFO_OUT "artifacts/fifo_out"
 
 typedef int Error;
-bool g_should_close                                     = false;
-bool g_should_react                                     = false;
-char g_serial_output_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
-int g_serial_fd                                         = 0;
-ssize_t g_serial_bytes_to_write                         = 0;
-char g_fifo_input_buffer[COMMUNICATION_BUFF_IN_SIZE]    = {0};
-ssize_t g_fifo_bytes_read                               = 0;
+int g_serial_fd = 0;
+
+volatile bool g_should_close                                  = false;
+volatile bool g_should_react                                  = false;
+volatile char g_fifo_input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+volatile ssize_t g_fifo_bytes_read                            = 0;
 
 #include "usbutils.c"
 #include "fifoutils.c"
@@ -81,13 +81,14 @@ Error send_dummy_string_to_fifo_in(void)
 
 int main(int argc, char* argv[])
 {
-    char serial_input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
-    // char fifo_output_buffer[COMMUNICATION_BUFF_IN_SIZE]  = {0};
     ssize_t bytes_read = 0;
     pthread_t fifo_thread;
     pthread_attr_t pthread_attr;
-    const char* message             = NULL;
-    bool should_send_serial_message = false;
+    const char* message                                   = NULL;
+    char serial_input_buffer[COMMUNICATION_BUFF_IN_SIZE]  = {0};
+    char serial_output_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
+    ssize_t serial_bytes_to_write                         = 0;
+    bool should_send_serial_message                       = false;
     pthread_attr_init(&pthread_attr);
     if (pthread_create(&fifo_thread, &pthread_attr, fifo_reader, NULL) < 0)
     {
@@ -107,17 +108,17 @@ int main(int argc, char* argv[])
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
     usb_utils_open_serial_port(argv[1], B115200, &g_serial_fd);
-
     while (!g_should_close)
     {
         if (g_should_react)
         {
             g_should_react = false;
-            if (strncmp(g_fifo_input_buffer, "POLL", (size_t)bytes_read) == 0)
+            if (strncmp(g_fifo_input_buffer, "POLL", (size_t)g_fifo_bytes_read) == 0)
             {
-                message                 = "FIFO asks for polling\n";
-                g_serial_bytes_to_write = sizeof(message);
-                memcpy(g_serial_output_buffer, message, g_serial_bytes_to_write);
+                message               = "give me a long string!\n";
+                serial_bytes_to_write = strlen(message);
+                printf("size to send %lu\n", serial_bytes_to_write);
+                memcpy(serial_output_buffer, message, serial_bytes_to_write);
                 should_send_serial_message = true;
             }
             bzero(g_fifo_input_buffer, g_fifo_bytes_read);
@@ -125,8 +126,7 @@ int main(int argc, char* argv[])
             if (should_send_serial_message)
             {
                 should_send_serial_message = false;
-                if (usb_utils_write_port(
-                        g_serial_fd, g_serial_output_buffer, g_serial_bytes_to_write)
+                if (usb_utils_write_port(g_serial_fd, serial_output_buffer, serial_bytes_to_write)
                     != ERR_ALL_GOOD)
                 {
                     printf("This should not happen\n");

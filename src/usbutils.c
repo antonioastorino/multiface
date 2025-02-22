@@ -60,9 +60,9 @@ Error usb_utils_open_serial_port(
     bzero(&options, sizeof(options));
 
     options.c_cflag        = CLOCAL | CREAD | CRTSCTS | CS8;
-    options.c_iflag        = IGNPAR | IGNCR | BRKINT | ICRNL | IMAXBEL;
+    options.c_iflag        = IGNCR;
     options.c_oflag        = OPOST | ONLCR;
-    options.c_lflag        = ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE | IEXTEN;
+    options.c_lflag        = ICANON;
     options.c_cc[VEOF]     = 4; /* Ctrl-d */
     options.c_cc[VEOL]     = 0; /* '\0' */
     options.c_cc[VEOL2]    = 0; // expected num of bytes before returning
@@ -107,6 +107,7 @@ void usb_utils_close_serial_port(int fd)
 // Writes bytes to the serial port, returning 0 on success and -1 on failure.
 Error usb_utils_write_port(const int fd, const char* buffer, const size_t size)
 {
+    printf("Sending `%s`. size: %lu\n", buffer, size);
     ssize_t result = write(fd, buffer, size);
     if (result != (ssize_t)size)
     {
@@ -122,17 +123,16 @@ Error usb_utils_read_port(const int fd, char* buffer, ssize_t* out_bytes_read_p)
     // null-terminated
     *out_bytes_read_p = -1;
     int i             = 0;
-    while ((i < 10) && (*out_bytes_read_p < 0))
+    while ((i < 100) && (*out_bytes_read_p < 0))
     {
         *out_bytes_read_p = read(fd, buffer, COMMUNICATION_BUFF_IN_SIZE - 1);
         usleep(1000);
         i++;
     }
-    printf("Received stuff\n");
     if (*out_bytes_read_p < 0)
     {
-        // perror("failed to read from port");
-        return ERR_UNEXPECTED;
+        *out_bytes_read_p = 0;
+        return ERR_TIMEOUT;
     }
     buffer[*out_bytes_read_p] = 0;
     return ERR_ALL_GOOD;
