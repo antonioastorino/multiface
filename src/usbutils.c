@@ -3,7 +3,7 @@ void _usb_utils_print_termios_struct(struct termios* options)
 {
 #ifdef __linux__
 #define OCTAL "%o"
-#else 
+#else
 #define OCTAL "%lo"
 #endif
     printf("c_iflag:  0" OCTAL "\n", options->c_iflag & 0777777);
@@ -63,16 +63,16 @@ Error usb_utils_open_serial_port(const char* device, const speed_t baud_rate, in
 
     bzero(&options, sizeof(options));
 
-    options.c_cflag        = CLOCAL | CREAD | CRTSCTS | CS8;
-    options.c_iflag        = IGNCR;
-    options.c_oflag        = OPOST | ONLCR;
-    options.c_lflag        = ICANON;
-    options.c_cc[VEOF]     = 4; /* Ctrl-d */
-    options.c_cc[VEOL]     = 0; /* '\0' */
-    options.c_cc[VEOL2]    = 0; // expected num of bytes before returning
+    options.c_cflag     = CLOCAL | CREAD | CRTSCTS | CS8;
+    options.c_iflag     = IGNCR;
+    options.c_oflag     = OPOST | ONLCR;
+    options.c_lflag     = ICANON;
+    options.c_cc[VEOF]  = 4; /* Ctrl-d */
+    options.c_cc[VEOL]  = 0; /* '\0' */
+    options.c_cc[VEOL2] = 0; // expected num of bytes before returning
 #ifdef __linux__
-    options.c_cc[VSWTC]    = 0; /* '\0' */
-#endif /* __linux__ */
+    options.c_cc[VSWTC] = 0;    /* '\0' */
+#endif                          /* __linux__ */
     options.c_cc[VINTR]    = 0; /* Ctrl-c */
     options.c_cc[VQUIT]    = 0; /* Ctrl-\ */
     options.c_cc[VERASE]   = 0; /* del */
@@ -111,11 +111,11 @@ void usb_utils_close_serial_port(int fd)
 }
 
 // Writes bytes to the serial port, returning 0 on success and -1 on failure.
-Error usb_utils_write_port(const int fd, const char* buffer, const size_t size)
+Error usb_utils_write_port(const int fd, const SizedBuffer* buffer_p)
 {
-    printf("Sending `%s`. size: %lu\n", buffer, size);
-    ssize_t result = write(fd, buffer, size);
-    if (result != (ssize_t)size)
+    printf("Sending `%s`. size: %lu\n", buffer_p->buffer, buffer_p->size);
+    ssize_t result = write(fd, buffer_p->buffer, buffer_p->size);
+    if (result != (ssize_t)buffer_p->size)
     {
         printf("Failed to write to port.\n");
         return ERR_UNEXPECTED;
@@ -123,23 +123,23 @@ Error usb_utils_write_port(const int fd, const char* buffer, const size_t size)
     return ERR_ALL_GOOD;
 }
 
-Error usb_utils_read_port(const int fd, char* buffer, ssize_t* out_bytes_read_p)
+Error usb_utils_read_port(const int fd, SizedBuffer* buffer_p)
 {
     // Leave one empty spot in the array to ensure that even if the buffer is full it can be
     // null-terminated
-    *out_bytes_read_p = -1;
-    int i             = 0;
-    while ((i < 100) && (*out_bytes_read_p < 0))
+    buffer_p->size = -1;
+    int i          = 0;
+    while ((i < 100) && (buffer_p->size < 0))
     {
-        *out_bytes_read_p = read(fd, buffer, COMMUNICATION_BUFF_IN_SIZE - 1);
+        buffer_p->size = read(fd, buffer_p->buffer, COMMUNICATION_BUFF_IN_SIZE - 1);
         usleep(1000);
         i++;
     }
-    if (*out_bytes_read_p < 0)
+    if (buffer_p->size < 0)
     {
-        *out_bytes_read_p = 0;
+        buffer_p->size = 0;
         return ERR_TIMEOUT;
     }
-    buffer[*out_bytes_read_p] = 0;
+    buffer_p->buffer[buffer_p->size] = 0;
     return ERR_ALL_GOOD;
 }

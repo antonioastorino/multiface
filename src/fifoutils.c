@@ -37,13 +37,26 @@ Error fifo_utils_wait_for_fifo_in(SizedBuffer* fifo_buffer_p)
         printf("Failed to open FIFO `%s`.\n", FIFO_IN);
         return ERR_FATAL;
     }
-    fifo_buffer_p->size = read(fifo_fd, fifo_buffer_p->buffer, COMMUNICATION_BUFF_IN_SIZE);
-    if (fifo_buffer_p->size < 0)
+    ssize_t bytes_read = 0;
+    char c;
+    ssize_t tmp;
+    while (bytes_read < COMMUNICATION_BUFF_IN_SIZE)
     {
-        printf("Failed to read from FIFO `%s`.\n", FIFO_IN);
-        return ERR_FATAL;
+        tmp = read(fifo_fd, &c, 1);
+        if (tmp < 0)
+        {
+            printf("Failed to read from FIFO `%s`.\n", FIFO_IN);
+            return ERR_FATAL;
+        }
+        else if ((c == '\n') || tmp == 0)
+        {
+            break;
+        }
+        fifo_buffer_p->buffer[bytes_read] = c;
+        bytes_read++;
     }
     close(fifo_fd);
+    fifo_buffer_p->size = bytes_read;
     printf("Received: `%s`.\n", fifo_buffer_p->buffer);
     return ERR_ALL_GOOD;
 }
