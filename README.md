@@ -21,28 +21,29 @@ Therefore, reading after sending a message is done in non-blocking mode, until
 data is received or the reading operation timeouts.
 
 ## Usage
-As an example, an ESP32 can run the script in `slave/`
+As an example, an ESP32 or Arduino UNO can run the program `slave/src/main.cpp`:
 
-```bash
+```console
 cd slave
-platformio run -t upload
+platformio run -t upload -e <env>
 ```
+where `<env>` can be `esp32dev` or `uno`.
 
 From the root folder, run
-```bash
+```console
 ./tools/build_and_run.sh /dev/<device_name>
 ```
-where `<device_name>` is that used to communicate with the ESP32, for example
-`ttyUSB0`.
+where `<device_name>` is that used to communicate with the uC, for example `ttyUSB0`.
 
 Then `echo` your instructions to the FIFO created by the application. As an
 example, the `POLL` call has been implemented:
 - run the application
-- use `echo -n POLL >artifacts/fifo_in
-This will make the application write a message to the Serial Device and wait
-for its response.
+- use `echo -n POLL >artifacts/fifo_in`
+
+This will tell the application send `"give me a long string!"` to the Serial Device
+and wait for its (long) response.
 
 ## Limitations
-Tested on Raspberry Pi 4 and ESP32 only. With minor changes, it can run on any
+Tested on Raspberry Pi 4 and ESP32/Arduino UNO only. With minor changes, it can run on any
 uC supported by Platform IO and any OS.
 
