@@ -4,6 +4,9 @@ void setup(void)
 {
     Serial.begin(115200);
     Serial.setTimeout(5000);
+    while(Serial.available()) {
+        Serial.read();
+    }
 }
 
 void loop(void)

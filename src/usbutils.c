@@ -58,8 +58,8 @@ Error usb_utils_open_serial_port(const char* device, const speed_t baud_rate, in
         close(*out_fd);
         return ERR_UNEXPECTED;
     }
-    printf("Initial options:\n");
-    _usb_utils_print_termios_struct(&initial_options);
+//    printf("Initial options:\n");
+//    _usb_utils_print_termios_struct(&initial_options);
 
     bzero(&options, sizeof(options));
 

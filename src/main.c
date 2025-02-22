@@ -93,37 +93,42 @@ Error send_dummy_string_to_fifo_in(void)
 
 int main(int argc, char* argv[])
 {
+    if (argc < 2)
+    {
+        printf("Missing serial device\n");
+        exit(1);
+    }
     pthread_t fifo_thread;
     pthread_attr_t pthread_attr;
     const char* message             = NULL;
     SizedBuffer serial_input        = {0};
     SizedBuffer serial_output       = {0};
     bool should_send_serial_message = false;
+    // ---- set up FIFO stuff ----
+    fifo_utils_make_fifo(FIFO_IN);
+    fifo_utils_make_fifo(FIFO_OUT);
+    fifo_utils_flush_fifo_in();
+
+    // ---- set up thread stuff ---
     pthread_attr_init(&pthread_attr);
     if (pthread_create(&fifo_thread, &pthread_attr, fifo_reader, NULL) < 0)
     {
         perror("Create thread");
         exit(ERR_FATAL);
     }
+    pthread_attr_destroy(&pthread_attr);
     if (pthread_mutex_init(&process_fifo, NULL) < 0)
     {
         printf("Failed to initialize mutex\n");
         exit(ERR_FATAL);
     }
 
-    pthread_attr_destroy(&pthread_attr);
+    // ---- set up serial stuff ----
+    usb_utils_open_serial_port(argv[1], B115200, &g_serial_fd);
 
-    if (argc < 2)
-    {
-        printf("Missing serial device\n");
-        exit(1);
-    }
-    fifo_utils_make_fifo(FIFO_IN);
-    fifo_utils_make_fifo(FIFO_OUT);
     struct sigaction sa = {.sa_handler = signal_handler};
     sigaction(SIGINT, &sa, 0);
     sigaction(SIGTERM, &sa, 0);
-    usb_utils_open_serial_port(argv[1], B115200, &g_serial_fd);
     while (!g_should_close)
     {
         if (g_should_process_fifo)
@@ -165,7 +170,7 @@ int main(int argc, char* argv[])
             }
             g_should_process_fifo = false;
             pthread_mutex_unlock(&process_fifo);
-            // Wait a bit in case there is still stuff in FIFO_IN 
+            // Wait a bit in case there is still stuff in FIFO_IN
             usleep(10000);
         }
         else
