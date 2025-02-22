@@ -1,16 +1,23 @@
 
 void _usb_utils_print_termios_struct(struct termios* options)
 {
-    printf("c_iflag:  0%o\n", options->c_iflag & 0777777);
-    printf("c_oflag:  0%o\n", options->c_oflag & 0777777);
-    printf("c_cflag:  0%o\n", options->c_cflag & 0777777);
-    printf("c_lflag:  0%o\n", options->c_lflag & 0777777);
-    printf("c_ispeed: 0%o\n", options->c_ispeed);
-    printf("c_ospeed: 0%o\n", options->c_ospeed);
+#ifdef __linux__
+#define OCTAL "%o"
+#else 
+#define OCTAL "%lo"
+#endif
+    printf("c_iflag:  0" OCTAL "\n", options->c_iflag & 0777777);
+    printf("c_oflag:  0" OCTAL "\n", options->c_oflag & 0777777);
+    printf("c_cflag:  0" OCTAL "\n", options->c_cflag & 0777777);
+    printf("c_lflag:  0" OCTAL "\n", options->c_lflag & 0777777);
+    printf("c_ispeed: 0" OCTAL "\n", options->c_ispeed);
+    printf("c_ospeed: 0" OCTAL "\n", options->c_ospeed);
     printf("c_cc[VEOF]    : %d\n", options->c_cc[VEOF]);
     printf("c_cc[VEOL]    : %d\n", options->c_cc[VEOL]);
     printf("c_cc[VEOL2]   : %d\n", options->c_cc[VEOL2]);
+#ifdef __linux__
     printf("c_cc[VSWTC]   : %d\n", options->c_cc[VSWTC]);
+#endif /* __linux__ */
     printf("c_cc[VINTR]   : %d\n", options->c_cc[VINTR]);
     printf("c_cc[VQUIT]   : %d\n", options->c_cc[VQUIT]);
     printf("c_cc[VERASE]  : %d\n", options->c_cc[VERASE]);
@@ -28,10 +35,7 @@ void _usb_utils_print_termios_struct(struct termios* options)
 
 struct termios initial_options;
 
-Error usb_utils_open_serial_port(
-    const char* device,
-    const speed_t baud_rate,
-    int* out_fd)
+Error usb_utils_open_serial_port(const char* device, const speed_t baud_rate, int* out_fd)
 {
     *out_fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (*out_fd == -1)
@@ -66,7 +70,9 @@ Error usb_utils_open_serial_port(
     options.c_cc[VEOF]     = 4; /* Ctrl-d */
     options.c_cc[VEOL]     = 0; /* '\0' */
     options.c_cc[VEOL2]    = 0; // expected num of bytes before returning
+#ifdef __linux__
     options.c_cc[VSWTC]    = 0; /* '\0' */
+#endif /* __linux__ */
     options.c_cc[VINTR]    = 0; /* Ctrl-c */
     options.c_cc[VQUIT]    = 0; /* Ctrl-\ */
     options.c_cc[VERASE]   = 0; /* del */

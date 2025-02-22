@@ -29,12 +29,16 @@
 #define FIFO_OUT "artifacts/fifo_out"
 
 typedef int Error;
-int g_serial_fd = 0;
+typedef struct
+{
+    char buffer[COMMUNICATION_BUFF_IN_SIZE];
+    ssize_t size;
+} SizedBuffer;
 
-volatile bool g_should_close                                  = false;
-volatile bool g_should_react                                  = false;
-volatile char g_fifo_input_buffer[COMMUNICATION_BUFF_IN_SIZE] = {0};
-volatile ssize_t g_fifo_bytes_read                            = 0;
+int g_serial_fd              = 0;
+SizedBuffer g_fifo_input     = {0};
+volatile bool g_should_close = false;
+volatile bool g_should_react = false;
 
 #include "usbutils.c"
 #include "fifoutils.c"
@@ -51,7 +55,7 @@ void* fifo_reader(void* unused)
     printf("Thread running");
     while (!g_should_close)
     {
-        fifo_utils_wait_for_fifo_in(g_fifo_input_buffer, &g_fifo_bytes_read);
+        fifo_utils_wait_for_fifo_in(&g_fifo_input);
         g_should_react = true;
     }
     return NULL;
@@ -113,7 +117,7 @@ int main(int argc, char* argv[])
         if (g_should_react)
         {
             g_should_react = false;
-            if (strncmp(g_fifo_input_buffer, "POLL", (size_t)g_fifo_bytes_read) == 0)
+            if (strncmp(g_fifo_input.buffer, "POLL", (size_t)g_fifo_input.size) == 0)
             {
                 message               = "give me a long string!\n";
                 serial_bytes_to_write = strlen(message);
@@ -121,7 +125,7 @@ int main(int argc, char* argv[])
                 memcpy(serial_output_buffer, message, serial_bytes_to_write);
                 should_send_serial_message = true;
             }
-            bzero(g_fifo_input_buffer, g_fifo_bytes_read);
+            bzero((void*)g_fifo_input.buffer, g_fifo_input.size);
 
             if (should_send_serial_message)
             {

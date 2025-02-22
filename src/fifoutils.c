@@ -16,17 +16,20 @@ void fifo_utils_make_fifo(const char* fifo_path_char_p)
         printf("`%s` should be a FIFO.\n", fifo_path_char_p);
         exit(ERR_FATAL);
     }
-    else {
+    else
+    {
         printf("`%s` FIFO is already there.\n", fifo_path_char_p);
     }
+#ifdef __linux__
     if (chown(fifo_path_char_p, 1000, 1000) < 0)
     {
         printf("Failed to set FIFO `%s` ownership.\n", fifo_path_char_p);
         exit(ERR_FATAL);
     }
+#endif /* __linux__ */
 }
 
-Error fifo_utils_wait_for_fifo_in(char* out_fifo_in_buffer_p, ssize_t *bytes_read)
+Error fifo_utils_wait_for_fifo_in(SizedBuffer* fifo_buffer_p)
 {
     int fifo_fd = open(FIFO_IN, O_RDONLY);
     if (fifo_fd < 0)
@@ -34,13 +37,13 @@ Error fifo_utils_wait_for_fifo_in(char* out_fifo_in_buffer_p, ssize_t *bytes_rea
         printf("Failed to open FIFO `%s`.\n", FIFO_IN);
         return ERR_FATAL;
     }
-    *bytes_read = read(fifo_fd, out_fifo_in_buffer_p, COMMUNICATION_BUFF_IN_SIZE);
-    if (*bytes_read < 0)
+    fifo_buffer_p->size = read(fifo_fd, fifo_buffer_p->buffer, COMMUNICATION_BUFF_IN_SIZE);
+    if (fifo_buffer_p->size < 0)
     {
         printf("Failed to read from FIFO `%s`.\n", FIFO_IN);
         return ERR_FATAL;
     }
     close(fifo_fd);
-    printf("Received: `%s`.\n", out_fifo_in_buffer_p);
+    printf("Received: `%s`.\n", fifo_buffer_p->buffer);
     return ERR_ALL_GOOD;
 }
