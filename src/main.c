@@ -49,12 +49,34 @@ void* fifo_reader(void* unused)
 {
     UNUSED(unused);
     printf("Thread running");
-    while (true)
+    while (!g_should_close)
     {
         fifo_utils_wait_for_fifo_in(g_fifo_input_buffer, &g_fifo_bytes_read);
         g_should_react = true;
     }
     return NULL;
+}
+
+// Used to gracefully close the thread currently in blocking reading of FIFO_IN. By writing a dummy
+// string into FIFO_IN, the reading is unblocked and the thread can exit.
+Error send_dummy_string_to_fifo_in(void)
+{
+    int fifo_fd = open(FIFO_IN, O_WRONLY);
+    if (fifo_fd < 0)
+    {
+        printf("Failed to open FIFO IN for reading file `%s`.\n", FIFO_IN);
+        return ERR_FATAL;
+    }
+    else
+    {
+        if (write(fifo_fd, "dummy", 5) < 0)
+        {
+            printf("Failed to write to FIFO OUT `%s`.\n", FIFO_IN);
+            return ERR_FATAL;
+        }
+    }
+    close(fifo_fd);
+    return ERR_ALL_GOOD;
 }
 
 int main(int argc, char* argv[])
@@ -136,7 +158,10 @@ int main(int argc, char* argv[])
     }
 
     printf("Joining\n");
-    pthread_cancel(fifo_thread);
+    if (send_dummy_string_to_fifo_in() != ERR_ALL_GOOD)
+    {
+        pthread_cancel(fifo_thread);
+    }
     printf("should react = %d\n", g_should_react);
     printf("should close = %d\n", g_should_close);
     pthread_join(fifo_thread, NULL);
