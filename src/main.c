@@ -1,12 +1,14 @@
 #include <sched.h> /* To set the priority on linux */
-#include <stdbool.h>
 #include <signal.h>
 #include <unistd.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <termios.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <strings.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -15,20 +17,11 @@
 #include <pthread.h>
 #include <string.h>
 
-#define ERR_ALL_GOOD (0)
-#define ERR_UNEXPECTED (1)
-#define ERR_INTERRUPTION (2)
-#define ERR_INVALID (3)
-#define ERR_TIMEOUT (4)
-#define ERR_FATAL (-1)
-
 #define COMMUNICATION_BUFF_IN_SIZE (4096)
-#define UNUSED(x) (void)(x)
 
 #define FIFO_IN "artifacts/fifo_in"
 #define FIFO_OUT "artifacts/fifo_out"
 
-typedef int Error;
 typedef struct
 {
     char buffer[COMMUNICATION_BUFF_IN_SIZE];
@@ -41,6 +34,8 @@ volatile bool g_should_close        = false;
 volatile bool g_should_process_fifo = false;
 pthread_mutex_t process_fifo;
 
+#define LOG_LEVEL LEVEL_TRACE
+#include "mylib.c"
 #include "usbutils.c"
 #include "fifoutils.c"
 
@@ -98,6 +93,8 @@ int main(int argc, char* argv[])
         printf("Missing serial device\n");
         exit(1);
     }
+    logger_init(NULL, NULL);
+    LOG_INFO("Logger initialized");
     pthread_t fifo_thread;
     pthread_attr_t pthread_attr;
     const char* message             = NULL;
@@ -119,7 +116,7 @@ int main(int argc, char* argv[])
     pthread_attr_destroy(&pthread_attr);
     if (pthread_mutex_init(&process_fifo, NULL) < 0)
     {
-        printf("Failed to initialize mutex\n");
+        LOG_ERROR("Failed to initialize mutex");
         exit(ERR_FATAL);
     }
 
@@ -138,7 +135,7 @@ int main(int argc, char* argv[])
             {
                 message            = "give me a long string!\n";
                 serial_output.size = strlen(message);
-                printf("size to send %lu\n", serial_output.size);
+                LOG_TRACE("size to send %lu", serial_output.size);
                 memcpy(serial_output.buffer, message, serial_output.size);
                 should_send_serial_message = true;
             }
@@ -149,18 +146,18 @@ int main(int argc, char* argv[])
                 should_send_serial_message = false;
                 if (usb_utils_write_port(g_serial_fd, &serial_output) != ERR_ALL_GOOD)
                 {
-                    printf("This should not happen\n");
+                    LOG_ERROR("This should not happen");
                     exit(ERR_FATAL);
                 }
                 if (usb_utils_read_port(g_serial_fd, &serial_input) == ERR_ALL_GOOD)
                 {
                     if (serial_input.size)
                     {
-                        printf("Read: %s", serial_input.buffer);
+                        LOG_INFO("Read: %s", serial_input.buffer);
                     }
                     else
                     {
-                        printf("Got an empty answer\n");
+                        LOG_WARNING("Got an empty answer");
                     }
                 }
                 else
