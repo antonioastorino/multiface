@@ -13,8 +13,8 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <pthread.h>
+#include <time.h>
 #include <string.h>
 
 #define COMMUNICATION_BUFF_IN_SIZE (4096)

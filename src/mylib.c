@@ -504,7 +504,7 @@ void ASSERT_EQ_uint32(
     else
     {
         PRINT_FAIL_MESSAGE_EQ(message, filename, line_number);
-        fprintf(stderr, "Left : `%hu`\nRight: `%hu`\n", value_1, value_2);
+        fprintf(stderr, "Left : `%u`\nRight: `%u`\n", value_1, value_2);
     }
 }
 
