@@ -32,7 +32,6 @@ int g_serial_fd                     = 0;
 SizedBuffer g_fifo_input            = {0};
 volatile bool g_should_close        = false;
 volatile bool g_should_process_fifo = false;
-pthread_mutex_t process_fifo;
 
 #define LOG_LEVEL LEVEL_TRACE
 #include "mylib.c"
@@ -45,16 +44,16 @@ void signal_handler(int signum)
     g_should_close = true;
 }
 
-void* fifo_reader(void* unused)
+void* fifo_reader_thread(void* mutex)
 {
-    UNUSED(unused);
+    auto busy_mutex_p = (pthread_mutex_t*)(mutex);
     printf("Thread running");
     while (!g_should_close)
     {
         fifo_utils_wait_for_fifo_in(&g_fifo_input);
-        pthread_mutex_lock(&process_fifo);
+        pthread_mutex_lock(busy_mutex_p);
         g_should_process_fifo = true;
-        pthread_mutex_unlock(&process_fifo);
+        pthread_mutex_unlock(busy_mutex_p);
         while (g_should_process_fifo && !g_should_close)
         {
             usleep(1000);
@@ -64,6 +63,22 @@ void* fifo_reader(void* unused)
     return NULL;
 }
 
+void start_fifo_reader_thread(pthread_t* inout_thread_p, pthread_mutex_t* inout_busy_mutex_p)
+{
+    pthread_attr_t pthread_attr;
+    pthread_attr_init(&pthread_attr);
+    if (pthread_create(inout_thread_p, &pthread_attr, fifo_reader_thread, inout_busy_mutex_p) < 0)
+    {
+        perror("Create thread");
+        exit(ERR_FATAL);
+    }
+    pthread_attr_destroy(&pthread_attr);
+    if (pthread_mutex_init(inout_busy_mutex_p, NULL) < 0)
+    {
+        LOG_ERROR("Failed to initialize mutex");
+        exit(ERR_FATAL);
+    }
+}
 // Used to gracefully close the thread currently in blocking reading of FIFO_IN. By writing a dummy
 // string into FIFO_IN, the reading is unblocked and the thread can exit.
 Error send_dummy_string_to_fifo_in(void)
@@ -96,7 +111,7 @@ int main(int argc, char* argv[])
     logger_init(NULL, NULL);
     LOG_INFO("Logger initialized");
     pthread_t fifo_thread;
-    pthread_attr_t pthread_attr;
+    pthread_mutex_t fifo_busy_mutex;
     const char* message             = NULL;
     SizedBuffer serial_input        = {0};
     SizedBuffer serial_output       = {0};
@@ -106,21 +121,8 @@ int main(int argc, char* argv[])
     fifo_utils_make_fifo(FIFO_OUT);
     fifo_utils_flush_fifo_in();
 
-    // ---- set up thread stuff ---
-    pthread_attr_init(&pthread_attr);
-    if (pthread_create(&fifo_thread, &pthread_attr, fifo_reader, NULL) < 0)
-    {
-        perror("Create thread");
-        exit(ERR_FATAL);
-    }
-    pthread_attr_destroy(&pthread_attr);
-    if (pthread_mutex_init(&process_fifo, NULL) < 0)
-    {
-        LOG_ERROR("Failed to initialize mutex");
-        exit(ERR_FATAL);
-    }
+    start_fifo_reader_thread(&fifo_thread, &fifo_busy_mutex);
 
-    // ---- set up serial stuff ----
     usb_utils_open_serial_port(argv[1], B115200, &g_serial_fd);
 
     struct sigaction sa = {.sa_handler = signal_handler};
@@ -130,7 +132,7 @@ int main(int argc, char* argv[])
     {
         if (g_should_process_fifo)
         {
-            pthread_mutex_lock(&process_fifo);
+            pthread_mutex_lock(&fifo_busy_mutex);
             if (strncmp(g_fifo_input.buffer, "POLL", (size_t)g_fifo_input.size) == 0)
             {
                 message            = "give me a long string!\n";
@@ -166,7 +168,7 @@ int main(int argc, char* argv[])
                 }
             }
             g_should_process_fifo = false;
-            pthread_mutex_unlock(&process_fifo);
+            pthread_mutex_unlock(&fifo_busy_mutex);
             // Wait a bit in case there is still stuff in FIFO_IN
             usleep(10000);
         }
@@ -185,6 +187,6 @@ int main(int argc, char* argv[])
     printf("should process fifo = %d\n", g_should_process_fifo);
     printf("should close =        %d\n", g_should_close);
     pthread_join(fifo_thread, NULL);
-    pthread_mutex_destroy(&process_fifo);
+    pthread_mutex_destroy(&fifo_busy_mutex);
     return ERR_ALL_GOOD;
 }
