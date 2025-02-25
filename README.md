@@ -7,10 +7,10 @@ and talks to an external Serial Device based on those instructions.
 ```
    User               Multiface           Serial Device 
     .       fifo_in               USB          .
-    |    ---------->      |                    .
-    .                     |    ---------->     |
-    .      fifo_out       |    <----------     |
-    |    <----------      |                    .
+    |    ━━━━━━━━━━>      |                    .
+    .                     |    ━━━━━━━━━━>     |
+    .      fifo_out       |    <━━━━━━━━━━     |
+    |    <━━━━━━━━━━      |                    .
 ```
 
 Reading from FIFO is a blocking operation running on a separate thread. If any
