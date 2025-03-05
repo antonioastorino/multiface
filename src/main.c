@@ -48,17 +48,27 @@ void* fifo_reader_thread(void* mutex)
 {
     pthread_mutex_t* busy_mutex_p = (pthread_mutex_t*)(mutex);
     printf("Thread running");
+    int fifo_fd = open(FIFO_IN, O_RDONLY);
+    if (fifo_fd < 0)
+    {
+        printf("Failed to open FIFO `%s`.\n", FIFO_IN);
+        exit(ERR_FATAL);
+    }
     while (!g_should_close)
     {
-        fifo_utils_wait_for_fifo_in(&g_fifo_input);
-        pthread_mutex_lock(busy_mutex_p);
-        g_should_process_fifo = true;
-        pthread_mutex_unlock(busy_mutex_p);
-        while (g_should_process_fifo && !g_should_close)
+        fifo_utils_wait_for_fifo_in(&g_fifo_input, fifo_fd);
+        if (g_fifo_input.size)
         {
-            usleep(1000);
-            // Wake up quickly after the data has been processed
+            pthread_mutex_lock(busy_mutex_p);
+            g_should_process_fifo = true;
+            pthread_mutex_unlock(busy_mutex_p);
+            while (g_should_process_fifo && !g_should_close)
+            {
+                usleep(1000);
+                // Wake up quickly after the data has been processed
+            }
         }
+        usleep(1000);
     }
     return NULL;
 }
@@ -133,7 +143,7 @@ int main(int argc, char* argv[])
         if (g_should_process_fifo)
         {
             pthread_mutex_lock(&fifo_busy_mutex);
-            if (strncmp(g_fifo_input.buffer, "POLL", (size_t)g_fifo_input.size) == 0)
+            if (strncmp(g_fifo_input.buffer, "POLL\n", 5) == 0)
             {
                 message            = "give me a long string!\n";
                 serial_output.size = strlen(message);

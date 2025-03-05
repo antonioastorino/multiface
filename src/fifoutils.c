@@ -49,14 +49,8 @@ void fifo_utils_flush_fifo_in(void)
     close(fifo_fd);
 }
 
-Error fifo_utils_wait_for_fifo_in(SizedBuffer* fifo_buffer_p)
+Error fifo_utils_wait_for_fifo_in(SizedBuffer* fifo_buffer_p, int fifo_fd)
 {
-    int fifo_fd = open(FIFO_IN, O_RDONLY);
-    if (fifo_fd < 0)
-    {
-        printf("Failed to open FIFO `%s`.\n", FIFO_IN);
-        return ERR_FATAL;
-    }
     ssize_t bytes_read = 0;
     char c;
     ssize_t tmp;
@@ -68,15 +62,24 @@ Error fifo_utils_wait_for_fifo_in(SizedBuffer* fifo_buffer_p)
             printf("Failed to read from FIFO `%s`.\n", FIFO_IN);
             return ERR_FATAL;
         }
-        else if ((c == '\n') || tmp == 0)
+        else if (tmp == 0)
         {
             break;
         }
-        fifo_buffer_p->buffer[bytes_read] = c;
-        bytes_read++;
+        else
+        {
+            fifo_buffer_p->buffer[bytes_read] = c;
+            bytes_read++;
+            if (c == '\n')
+            {
+                break;
+            }
+        }
     }
-    close(fifo_fd);
     fifo_buffer_p->size = bytes_read;
-    printf("Received: `%s`.\n", fifo_buffer_p->buffer);
+    if (bytes_read)
+    {
+        printf("Received: `%s`, bytes: %lu.\n", fifo_buffer_p->buffer, bytes_read);
+    }
     return ERR_ALL_GOOD;
 }
