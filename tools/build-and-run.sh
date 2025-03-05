@@ -2,7 +2,7 @@
 
 set -ue
 DEV=$1
-FLAGS="-Wall -Wextra -std=c2x -pedantic"
+FLAGS="-Wall -Wextra -std=c17 -pedantic"
 if [ "$(uname -s)" = "Linux" ]; then
     FLAGS="${FLAGS} -D_BSD_SOURCE -D_DEFAULT_SOURCE -D_GNU_SOURCE"
 fi

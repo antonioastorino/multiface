@@ -46,7 +46,7 @@ void signal_handler(int signum)
 
 void* fifo_reader_thread(void* mutex)
 {
-    auto busy_mutex_p = (pthread_mutex_t*)(mutex);
+    pthread_mutex_t* busy_mutex_p = (pthread_mutex_t*)(mutex);
     printf("Thread running");
     while (!g_should_close)
     {
