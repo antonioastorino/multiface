@@ -13,15 +13,14 @@ and talks to an external Serial Device based on those instructions.
     |    <━━━━━━━━━━      |                    .
 ```
 
-Reading from FIFO is a blocking operation running on a separate thread. If any
-valid instruction is received, the main thread is asked to take action.
+Reading from FIFO is a done when a `POLLIN` event is triggered.
 FIFO instructions should be terminated with a `'\n'`. This way, multiple instructions
 can be sent at once but processed sequentially. Also, if 2 or more FIFO instructions
 pile up (concatenate), they will still be processed correctly (see examples below).
 
 Writing to Serial Device is expected to trigger a response (e.g., ACK or ERR).
-Therefore, reading after sending a message is done in non-blocking mode, until
-data is received or the reading operation times out.
+The slave Serial Device can responde with one or messages.
+They will all been accepted as long as the occur within a specified time, or the reading will be considered as completed.
 
 ## Usage
 As an example, an ESP32 or Arduino UNO can run the program `slave/src/main.cpp`:
@@ -48,24 +47,27 @@ example, the `POLL` call has been implemented:
 This instruction tells the MULTIFACE to send `"give me a long string!"` to the Serial Device
 and wait for its (long) response.
 
-As mentioned earlier, the following commands produce the same results:
+As mentioned earlier, multiple commands can be sent at once and they will be processed as if they arrived
+at different times. E.g.
 
 ```bash
-echo -e "POLL\nPOLL\nPOLL\n" >artifacts/fifo_in
+echo -e "POLL\nPOLL\nPOLL" >artifacts/fifo_in
 ```
-or
+
+is equivalent to
 ```bash
 for i in {0..3}; do echo -e "POLL\n" >artifacts/fifo_in; sleep 1; done
 ```
 
-A one-second sleep has been added to the second command ensure that each FIFO instruction is
-processed before the next one is sent.
+Note a one-second sleep in the second command added to ensure that each
+FIFO instruction is processed before the next one is sent.
 
 ## Supported devices 
 ### Operating Systems 
 Tested on
 - Raspberry Pi OS
 - MacOS
+- Ubuntu
 
 ### Micro Controllers 
 Supports

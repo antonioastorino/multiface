@@ -49,7 +49,7 @@ void fifo_utils_flush_fifo_in(void)
     close(fifo_fd);
 }
 
-Error fifo_utils_wait_for_fifo_in(SizedBuffer* fifo_buffer_p, int fifo_fd)
+Error fifo_utils_read_line(SizedBuffer* fifo_buffer_p, int fifo_fd)
 {
     ssize_t bytes_read = 0;
     char c;

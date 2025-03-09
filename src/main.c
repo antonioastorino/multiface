@@ -16,6 +16,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <string.h>
+#include <poll.h>
 
 #define COMMUNICATION_BUFF_IN_SIZE (4096)
 
@@ -28,10 +29,9 @@ typedef struct
     ssize_t size;
 } SizedBuffer;
 
-int g_serial_fd                     = 0;
-SizedBuffer g_fifo_input            = {0};
-volatile bool g_should_close        = false;
-volatile bool g_should_process_fifo = false;
+int g_serial_fd              = 0;
+SizedBuffer g_fifo_input     = {0};
+volatile bool g_should_close = false;
 
 #define LOG_LEVEL LEVEL_TRACE
 #include "mylib.c"
@@ -44,73 +44,6 @@ void signal_handler(int signum)
     g_should_close = true;
 }
 
-void* fifo_reader_thread(void* mutex)
-{
-    pthread_mutex_t* busy_mutex_p = (pthread_mutex_t*)(mutex);
-    printf("Thread running");
-    int fifo_fd = open(FIFO_IN, O_RDONLY);
-    if (fifo_fd < 0)
-    {
-        printf("Failed to open FIFO `%s`.\n", FIFO_IN);
-        exit(ERR_FATAL);
-    }
-    while (!g_should_close)
-    {
-        fifo_utils_wait_for_fifo_in(&g_fifo_input, fifo_fd);
-        if (g_fifo_input.size)
-        {
-            pthread_mutex_lock(busy_mutex_p);
-            g_should_process_fifo = true;
-            pthread_mutex_unlock(busy_mutex_p);
-            while (g_should_process_fifo && !g_should_close)
-            {
-                usleep(1000);
-                // Wake up quickly after the data has been processed
-            }
-        }
-        usleep(1000);
-    }
-    return NULL;
-}
-
-void start_fifo_reader_thread(pthread_t* inout_thread_p, pthread_mutex_t* inout_busy_mutex_p)
-{
-    pthread_attr_t pthread_attr;
-    pthread_attr_init(&pthread_attr);
-    if (pthread_create(inout_thread_p, &pthread_attr, fifo_reader_thread, inout_busy_mutex_p) < 0)
-    {
-        perror("Create thread");
-        exit(ERR_FATAL);
-    }
-    pthread_attr_destroy(&pthread_attr);
-    if (pthread_mutex_init(inout_busy_mutex_p, NULL) < 0)
-    {
-        LOG_ERROR("Failed to initialize mutex");
-        exit(ERR_FATAL);
-    }
-}
-// Used to gracefully close the thread currently in blocking reading of FIFO_IN. By writing a dummy
-// string into FIFO_IN, the reading is unblocked and the thread can exit.
-Error send_dummy_string_to_fifo_in(void)
-{
-    int fifo_fd = open(FIFO_IN, O_WRONLY);
-    if (fifo_fd < 0)
-    {
-        printf("Failed to open FIFO IN for reading file `%s`.\n", FIFO_IN);
-        return ERR_FATAL;
-    }
-    else
-    {
-        if (write(fifo_fd, "dummy", 5) < 0)
-        {
-            printf("Failed to write to FIFO OUT `%s`.\n", FIFO_IN);
-            return ERR_FATAL;
-        }
-    }
-    close(fifo_fd);
-    return ERR_ALL_GOOD;
-}
-
 int main(int argc, char* argv[])
 {
     if (argc < 2)
@@ -120,18 +53,20 @@ int main(int argc, char* argv[])
     }
     logger_init(NULL, NULL);
     LOG_INFO("Logger initialized");
-    pthread_t fifo_thread;
-    pthread_mutex_t fifo_busy_mutex;
     const char* message             = NULL;
     SizedBuffer serial_input        = {0};
     SizedBuffer serial_output       = {0};
     bool should_send_serial_message = false;
-    // ---- set up FIFO stuff ----
+
     fifo_utils_make_fifo(FIFO_IN);
     fifo_utils_make_fifo(FIFO_OUT);
-    fifo_utils_flush_fifo_in();
-
-    start_fifo_reader_thread(&fifo_thread, &fifo_busy_mutex);
+    int fifo_in_fd = open(FIFO_IN, O_RDONLY | O_NONBLOCK);
+    if (fifo_in_fd < 0)
+    {
+        printf("Failed to open FIFO `%s`.\n", FIFO_IN);
+        exit(ERR_FATAL);
+    }
+    struct pollfd polled_fd = {.fd = fifo_in_fd, .events = POLLIN, .revents = POLLERR};
 
     usb_utils_open_serial_port(argv[1], B115200, &g_serial_fd);
 
@@ -140,9 +75,13 @@ int main(int argc, char* argv[])
     sigaction(SIGTERM, &sa, 0);
     while (!g_should_close)
     {
-        if (g_should_process_fifo)
+        // Wait for a POLLIN event or keep processing the buffer (.size  != 0)
+        if (poll(&polled_fd, 1, 500) == 1 || g_fifo_input.size)
         {
-            pthread_mutex_lock(&fifo_busy_mutex);
+            if (fifo_utils_read_line(&g_fifo_input, fifo_in_fd) == ERR_FATAL)
+            {
+                exit(ERR_FATAL);
+            }
             if (strncmp(g_fifo_input.buffer, "POLL\n", 5) == 0)
             {
                 message            = "give me a long string!\n";
@@ -177,26 +116,13 @@ int main(int argc, char* argv[])
                     printf("Timeout\n");
                 }
             }
-            g_should_process_fifo = false;
-            pthread_mutex_unlock(&fifo_busy_mutex);
-            // Wait a bit in case there is still stuff in FIFO_IN
-            usleep(10000);
         }
         else
         {
             printf("Waiting for FIFO message\n");
-            sleep(1);
         }
     }
 
-    printf("Joining\n");
-    if (send_dummy_string_to_fifo_in() != ERR_ALL_GOOD)
-    {
-        pthread_cancel(fifo_thread);
-    }
-    printf("should process fifo = %d\n", g_should_process_fifo);
     printf("should close =        %d\n", g_should_close);
-    pthread_join(fifo_thread, NULL);
-    pthread_mutex_destroy(&fifo_busy_mutex);
     return ERR_ALL_GOOD;
 }
