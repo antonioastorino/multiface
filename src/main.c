@@ -60,13 +60,17 @@ int main(int argc, char* argv[])
 
     fifo_utils_make_fifo(FIFO_IN);
     fifo_utils_make_fifo(FIFO_OUT);
-    int fifo_in_fd = open(FIFO_IN, O_RDONLY | O_NONBLOCK);
+    int fifo_in_fd = open(FIFO_IN, O_RDWR | O_NONBLOCK);
     if (fifo_in_fd < 0)
     {
         printf("Failed to open FIFO `%s`.\n", FIFO_IN);
         exit(ERR_FATAL);
     }
-    struct pollfd polled_fd = {.fd = fifo_in_fd, .events = POLLIN, .revents = POLLERR};
+    struct pollfd polled_fd = {
+        .fd      = fifo_in_fd,
+        .events  = POLLIN,
+        .revents = POLLERR,
+    };
 
     usb_utils_open_serial_port(argv[1], B115200, &g_serial_fd);
 
@@ -76,7 +80,7 @@ int main(int argc, char* argv[])
     while (!g_should_close)
     {
         // Wait for a POLLIN event or keep processing the buffer (.size  != 0)
-        if (poll(&polled_fd, 1, 500) == 1 || g_fifo_input.size)
+        if (poll(&polled_fd, 1, 500) > 0 && (polled_fd.revents & POLLIN))
         {
             if (fifo_utils_read_line(&g_fifo_input, fifo_in_fd) == ERR_FATAL)
             {
